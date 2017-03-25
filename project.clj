@@ -1,4 +1,4 @@
-(defproject net.clojars.unexpectedness/shuriken "0.10.1"
+(defproject net.clojars.unexpectedness/shuriken "0.11.0"
   :description "unexpectedness' Clojure toolbox"
   :url "https://github.com/unexpectedness/shuriken"
   :license {:name "Eclipse Public License"
