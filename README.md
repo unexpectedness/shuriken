@@ -5,7 +5,7 @@ Small yet effective Clojure weapons.
 # Usage
 
 ```clojure
-[net.clojars.unexpectedness/shuriken "0.13.21"]
+[net.clojars.unexpectedness/shuriken "0.13.22"]
 ```
 
 
@@ -15,6 +15,10 @@ Small yet effective Clojure weapons.
 ```
 
 ## Associative structures
+
+### The boring
+
+`map-keys` & `map-vals`
 
 ### `flatten-keys`
 
