@@ -26,6 +26,17 @@ Small yet effective Clojure weapons.
 
 ## [API doc](https://unexpectedness.github.io/shuriken/index.html)
 
+# Grown-ups
+
+Libraries that were originally part of shuriken.
+
+- [lexikon](https://github.com/unexpectedness/lexikon): Reify, manipulate and replay the lexical environment in Clojure.
+- [arity](https://github.com/unexpectedness/arity): Get and fake arities of Clojure functions.
+- [threading](https://github.com/unexpectedness/threading): A Clojure threading macros library as sobber as its name.
+- [weaving](https://github.com/unexpectedness/weaving): Weaving is to lambdas what threading is to s-expressions.
+- [methodman](https://github.com/unexpectedness/methodman): Shaolin moves for Clojure methods.
+- [dance](https://github.com/unexpectedness/dance): Advanced tree walking in Clojure.
+
 ## Associative structures
 
 #### The boring
