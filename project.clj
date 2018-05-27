@@ -1,4 +1,4 @@
-(defproject net.clojars.unexpectedness/shuriken "0.14.1"
+(defproject net.clojars.unexpectedness/shuriken "0.14.2"
   :description "unexpectedness' Clojure toolbox"
   :url "https://github.com/unexpectedness/shuriken"
   :license {:name "Eclipse Public License"
@@ -7,6 +7,7 @@
                  [potemkin "0.4.3"]
                  [com.palletops/ns-reload "0.1.0"]
                  [dance "0.1.1"]
+                 [lexikon "0.1.0"]
 
                  ;; For monkey patches
                  [robert/hooke "1.3.0"]
