@@ -15,7 +15,7 @@ Small yet effective Clojure weapons.
 # Usage
 
 ```clojure
-[net.clojars.unexpectedness/shuriken "0.14.13"]
+[net.clojars.unexpectedness/shuriken "0.14.14"]
 ```
 
 
