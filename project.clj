@@ -1,4 +1,4 @@
-(defproject net.clojars.unexpectedness/shuriken "0.14.47"
+(defproject net.clojars.unexpectedness/shuriken "0.14.48"
   :description "unexpectedness' Clojure toolbox"
   :url "https://github.com/unexpectedness/shuriken"
   :license {:name "Eclipse Public License"
@@ -9,14 +9,13 @@
                  [potemkin "0.4.3"]
                  [com.palletops/ns-reload "0.1.0"]
                  [dance "0.1.3"]
-                 [threading "0.3.4"] ;; TODO: remove when dance is updated
                  [lexikon "0.2.1"]
 
                  ;; For monkey patches
                  [robert/hooke "1.3.0"]
                  [org.javassist/javassist "3.26.0-GA"]
-                 [net.bytebuddy/byte-buddy "1.9.12"]
-                 [net.bytebuddy/byte-buddy-agent "1.9.12"]
+                 [net.bytebuddy/byte-buddy "1.10.14"]
+                 [net.bytebuddy/byte-buddy-agent "1.10.14"]
                  [camel-snake-kebab "0.4.0"]
 
                  ;; For solver
