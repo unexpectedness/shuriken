@@ -132,7 +132,7 @@
 (defn index-by
   "Like `group-by` except it applies a strategy to each grouped
   collection.
-  A strategy is a function with signature `key, entries) -> entry`
+  A strategy is a function with signature `(key, entries) -> entry`
   where `entry` is the one that will be indexed.
   The default strategy asserts there is only one entry for the given
   key and returns it.
@@ -149,8 +149,8 @@
   => ; clojure.lang.ExceptionInfo (Duplicate entries for key 4)
 
   (index-by :b (fn [key entries]
-               (last entries))
-          ms)
+                 (last entries))
+            ms)
   => {2 {:a 1 :b 2}
       4 {:a 5 :b 4}}
   ```"

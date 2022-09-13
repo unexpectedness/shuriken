@@ -23,6 +23,8 @@
 
                  ;; For solver
                  [org.clojure/data.priority-map "0.0.7"]
+                 [com.dean/interval-tree "0.1.2"]
+                 [io.helins/interval "1.0.0-beta0"]
 
                  ;; For lein-tools-deps
                  ; [org.clojure/tools.deps.alpha "0.5.398"]
