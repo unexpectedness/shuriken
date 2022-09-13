@@ -1,7 +1,7 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
-## Unreleased
+## [0.14.49] - 2022-09-13
 ### Changed:
 - `associative`:
   - `getsoc` is now a macro.

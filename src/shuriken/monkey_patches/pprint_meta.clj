@@ -1,7 +1,6 @@
 (ns shuriken.monkey-patches.pprint-meta
   (:require [shuriken.namespace :refer [with-ns unqualify]]
             [shuriken.sequential]
-            [shuriken.meta]
             [shuriken.monkey-patch :refer [monkey-patch define-again
                                            require-from-dependent-namespaces]]
             [clojure.pprint]))
