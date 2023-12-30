@@ -37,15 +37,15 @@
 (defn conform! [spec value]
   (let [result (s/conform spec value)]
     (when (= result ::s/invalid)
-      (throw (Exception.
-               (binding [*print-level* 7
-                         *print-namespace-maps* false]
-                 (str \newline
-                      (with-out-str (->> (s/explain-data spec value)
-                                         (mapv (fn [[k v]]
-                                                 [(-> k name keyword) v]))
-                                         (into {})
-                                         pprint)))))))
+      (throw (let [^String msg (binding [*print-level* 7
+                                         *print-namespace-maps* false]
+                                 (str \newline
+                                      (with-out-str (->> (s/explain-data spec value)
+                                                         (mapv (fn [[k v]]
+                                                                 [(-> k name keyword) v]))
+                                                         (into {})
+                                                         pprint))))]
+               (Exception. msg))))
     result))
 
 (s/def ::args+body

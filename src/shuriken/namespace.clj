@@ -3,7 +3,8 @@
   (:require [clojure.string :as str]
             [potemkin :refer [import-vars]]
             [lexikon.core :refer [lexical-eval]]
-            [shuriken.exception :refer [silence]]))
+            [shuriken.exception :refer [silence]])
+  (:import [clojure.lang Symbol Var]))
 
 ;; TODO
 ; (defn ns-clear
@@ -60,7 +61,7 @@
                  (clojure.string/split #"\.")
                  last
                  seq
-                 first
+                 ^Character (first)
                  Character/isUpperCase)
          x)))
 
@@ -73,9 +74,9 @@
   (fully-qualified? 'IRecord)      => clojure.lang.IRecord
   (fully-qualified? 'my-var)       => my-ns/my-var
   (fully-qualified? 'alias/my-var) => actual.namespace/my-var"
-  ([sym]
+  ([^Symbol sym]
    (fully-qualify *ns* sym))
-  ([ns sym]
+  ([ns ^Symbol sym]
    (if (some-> (.getNamespace sym) could-be-class-name?)
      (symbol (str (-> (.getNamespace sym) symbol fully-qualify)
                   \/
@@ -85,7 +86,7 @@
          (class-name r)
          (symbol (str (-> r meta :ns str)
                       \/
-                      (.sym r))))
+                      (.sym ^Var r))))
        sym))))
 
 (defn fully-qualified?

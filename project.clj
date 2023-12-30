@@ -63,7 +63,8 @@
           :java-source-paths ["test/java"]
           :dependencies [[codox-theme-rdash "0.1.2"]
                          ;; To find cljs/cljc test namespaces to run with doo
-                         [org.clojure/tools.namespace "0.3.1"]]}]
+                         [org.clojure/tools.namespace "0.3.1"]]
+           :global-vars {*warn-on-reflection* true}}]
    :test [:dev
           {:cljsbuild
            {:builds

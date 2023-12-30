@@ -9,7 +9,7 @@
 (defmacro catch-it
   ([substitute-f pattern expr]
    (let [z `(let [pattern# ~pattern
-                  matches?# (fn f# [e# pattern#]
+                  matches?# (fn f# [^Throwable e# pattern#]
                               (cond
                                 (class? pattern#)  (instance? pattern# e#)
                                 (map? pattern#)    (and (instance? ExceptionInfo e#)
