@@ -1,6 +1,10 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
+## [0.14.50] - 2023-30-12
+### Fixed:
+- Fix some reflection warning for ns: `exception`, `namespace`, `spec`.
+
 ## [0.14.49] - 2022-09-13
 ### Changed:
 - `associative`:
