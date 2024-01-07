@@ -34,5 +34,3 @@
 (defmacro xm [a]
   (let [code `~(mem-unquote a)]
     code))
-
-(pprint (macroexpand '(xm 1)))

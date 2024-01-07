@@ -1,16 +1,34 @@
 (ns shuriken.monkey-patch
   "### Tools to monkey-patch Clojure and Java code"
+  (:use clojure.pprint)
   (:require [clojure.spec.alpha :as s]
+            [clojure.repl :refer [source-fn]]
             [com.palletops.ns-reload :as nsdeps]
+            [shuriken.byte-buddy :refer [->byte-buddy
+                                         ->javassist ;; TODO: remove
+                                         load-in-clojure-classloaders!]]
             [shuriken.spec :refer [conf either conform!]]
             [shuriken.namespace :refer [with-ns]]
             [shuriken.macro :refer [is-form? wrap-form unwrap-form]]
-            [clojure.repl :refer [source-fn]]
+
             [shuriken.reflection
              :refer [return-type delegate-name static-method?
-                     signature-to-str find-class find-method]])
+                     signature-to-str find-class find-method]
+             :reload true]
+            [weaving.core :refer :all])
   (:use robert.hooke)
-  (:import RedefineClassAgent))
+  (:import javassist.util.HotSwapAgent
+           RedefineClassAgent))
+
+(defn class-loaders [cl]
+  (take-while (not| nil?)
+              (iterate #(.getParent %) cl)))
+
+(defn dbg-class-loader [title cl]
+  (println "---" title "---")
+  (pprint (class-loaders cl))
+  (newline)
+  cl)
 
 (defn ^:no-doc prepend-ns
   ([k]
@@ -115,6 +133,54 @@
 ;         (eval `(. original (-> copy-name symbol) ~@args))))))
 
 (defmacro ^:no-doc change-java-method
+  [method-signature f & {onc :once :or {onc false}}]
+  (let [method-signature-sym (gensym "method-signature-")
+        code `(let [ct-class#   (find-class ~method-signature-sym)
+                    was-frozen# (if (.isFrozen ct-class#)
+                                  (do (.defrost ct-class#) true)
+                                  false)
+                    method#     (find-method ~method-signature-sym)
+                    _#          (~f method#)
+                    bytecode#   (.toBytecode ct-class#)
+                    [class-name# _method-name# _parameter-types#]
+                    (conform! :shuriken.reflection/method-signature
+                              ~method-signature-sym)
+                    definition# (java.lang.instrument.ClassDefinition.
+                                  (Class/forName class-name#)
+                                  bytecode#)
+                    ]
+                #_(let [before# (class-loaders (-> (Thread/currentThread) .getContextClassLoader))]
+                  (dbg-class-loader
+                     "initial classloader"
+                     (-> (Thread/currentThread) .getContextClassLoader))
+                  (-> ct-class# load-in-clojure-classloaders!)
+                  (dbg-class-loader
+                     "once loaded"
+                     (-> (Thread/currentThread) .getContextClassLoader))
+                  (let [after# (class-loaders (-> (Thread/currentThread) .getContextClassLoader))]
+                    (println "count before" (count before#))
+                    (println "count after"  (count after#))
+                    (println "CLs IDENTICAL" (map identical? (reverse before#) (reverse after#)))))
+                ; (HotSwapAgent/redefine (Class/forName class-name#)
+                ;                        (-> ct-class# ->byte-buddy ->javassist))
+                ; (RedefineClassAgent/redefineClasses
+                ;   (into-array java.lang.instrument.ClassDefinition
+                ;               [definition#]))
+                (RedefineClassAgent/redefineClasses
+                 (into-array java.lang.instrument.ClassDefinition
+                             [definition#]))
+                (when was-frozen# (.freeze ct-class#))
+                (.stopPruning ct-class# false)
+                nil)]
+    `(let [~method-signature-sym ~method-signature]
+       (if-let [onc# ~onc]
+         ~code
+         #_(once (str (signature-to-str ~method-signature-sym)
+                    "-" onc#)
+               )
+         ~code))))
+
+#_(defmacro ^:no-doc change-java-method
   [method-signature f & {:keys [once] :or {once false}}]
   (let [method-signature-sym (gensym "method-signature-")
         code `(let [ct-class#   (find-class ~method-signature-sym)
@@ -130,20 +196,20 @@
                     (conform! :shuriken.reflection/method-signature
                               ~method-signature-sym)
                     definition# (java.lang.instrument.ClassDefinition.
-                                  (Class/forName class-name#)
-                                  bytecode#)]
+                                 (Class/forName class-name#)
+                                 bytecode#)]
                 (RedefineClassAgent/redefineClasses
-                  (into-array java.lang.instrument.ClassDefinition
-                              [definition#]))
+                 (into-array java.lang.instrument.ClassDefinition
+                             [definition#]))
                 (when was-frozen# (.freeze ct-class#))
                 (.stopPruning ct-class# false)
                 nil)]
     `(let [~method-signature-sym ~method-signature]
        (if-let [once# ~once]
-          (once (str (signature-to-str ~method-signature-sym)
-                     "-" once#)
-             ~code)
-          ~code))))
+         (only (str (signature-to-str ~method-signature-sym)
+                    "-" once#)
+               ~code)
+         ~code))))
 
 (def primitive-types
   {"byte"    "Byte"
@@ -258,11 +324,10 @@
 
   `mode` can be either `:replace`, `:before` or `:after`.
   `body` can be javassist pseudo-java (a string) or clojure code.
-  In the latter case, `args` must be specified before `body` so as to
-  intercept the method's parameters. If `:after` is used `args` will
-  include the method's return value. If the method is an instance
-  method, `args` will also include the instance it is called on
-  (`this`).
+  In the latter case, `args` must be specified before `body`.
+  If `:after` is used `args` will include the method's return value.
+  If the method is an instance method, `args` will also include the
+  instance it is called on (`this`).
 
   `args`: `[this? return-value? & method-args]`
 
@@ -337,3 +402,4 @@
        (let [orig (meta v)]
          (eval source)
          (reset-meta! v orig)))))
+

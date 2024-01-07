@@ -36,7 +36,8 @@
 ;; TODO: refactor the .defrost to CtClasses
 
 (defn ->javassist [^DynamicType type]
-  (let [pool        (ClassPool/getDefault)
+  (let [pool        (doto (new ClassPool) (.appendSystemPath))
+                    ;(ClassPool/getDefault)
         class-name  (-> type .getTypeDescription .getName)
         _           (doto (silence javassist.NotFoundException
                             (.get pool class-name))
@@ -97,16 +98,21 @@
   (when-not (bound? Compiler/LOADER)
     (.bindRoot Compiler/LOADER (DynamicClassLoader. (clojure.lang.RT/baseLoader)))))
 
-;; TODO: extract and reuse ?
-(defn- frames
-  ([]
-   (->> (iterate #(read-field % :prev)
-                 (.get (read-field clojure.lang.Var :dvals)))
-        (take-while identity)
-        (map #(read-field % :bindings))))
-  ([& vars]
-   (map #(select-keys % vars)
-        (frames))))
+; (defn reimport-classes! [classes]
+;   (let [class-names (maps #(.getName %) classes)]
+;     (-> (all-ns)
+;         (map-> (juxt-> identity
+;                        (->> ns-imports
+;                             (filter #(contains? class-names (.getName (val %))))
+;                             (>>- (map-> vec))
+;                             (into {})))
+;                vec)
+;         (->> (filter #(-> % second seq))
+;              (into {})
+;              (run! (fn [[ns class-map]]
+;                      (run! (fn [[sym klass]]
+;                              (.importClass ns sym klass))
+;                            class-map)))))))
 
 (defn reload-ns-importing-classes! [classes]
   (let [class-names (maps #(.getName %) classes)]
@@ -121,6 +127,17 @@
         (map-> first .getName)
         (reload-namespaces {}))))
 
+;; TODO: extract and reuse ?
+(defn- frames
+  ([]
+   (->> (iterate #(read-field % :prev)
+                 (.get (read-field clojure.lang.Var :dvals)))
+        (take-while identity)
+        (map #(read-field % :bindings))))
+  ([& vars]
+   (map #(select-keys % vars)
+        (frames))))
+
 ;; TODO: mmh this fiddling with the binding frames is exciting: extract it.
 (defn load-in-clojure-classloaders! [type]
   (ensure-compiler-loader!)
@@ -131,8 +148,8 @@
                                       type
                                       class-loader
                                       (allow-existing-types
-                                        (class-loading-strategy :wrapper
-                                                                #_:wrapper-persistent)))
+                                        (class-loading-strategy
+                                          :wrapper-persistent)))
                                     get-loaded))
           CtClass             (fn [class-loader]
                                 (-> (Loader$Simple. class-loader)
@@ -177,9 +194,11 @@
                      new-existing))
                  {}))
     (let [loaded-class (-> th .getContextClassLoader load-type)]
+      (println "loaded-class" (.getName loaded-class))
+      (when (= "MonkeyPatchedD" (.getName loaded-class))
+        (println "=============>" (.d (.newInstance loaded-class))))
       (.setContextClassLoader
         th (-> loaded-class .getClassLoader DynamicClassLoader.))
-      ;; TODO: maybe ?
       #_(reload-ns-importing-classes!
         (flatten (class-tree :nested loaded-class)))
       loaded-class)))

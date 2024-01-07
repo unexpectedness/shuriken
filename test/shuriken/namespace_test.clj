@@ -1,7 +1,6 @@
 (ns shuriken.namespace-test
   (:require [clojure.test :refer :all]
-            [shuriken.core :refer :all
-             :reload true]
+            [shuriken.core :refer :all]
             [shuriken.virtual-test-namespace
              :refer [a-var .dot-var AProtocol]
              :as virtual])

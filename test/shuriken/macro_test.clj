@@ -84,7 +84,6 @@
       (testing "persistence"
         (let [code '(/ 1 x)
               _   (delete-folder test-folder)
-              _ (println "FILE" *file*)
               ok  (is (= 1 (let [x 1] (file-eval code))))
               _   (is (empty? (list-files test-folder)))
               ko  (is (true? (thrown? ArithmeticException

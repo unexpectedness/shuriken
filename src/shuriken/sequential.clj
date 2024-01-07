@@ -345,7 +345,7 @@
                                 v   vec
                                 m   (into {})
                                 str (apply str)})
-
+;; TODO: reconsider usefulness. I only use forcat.
 (defmacro def-compound-seq-fns []
   `(do ~@(for [seq-fn           seq-fns
                [suf1 expr1]     (conj seq-suffixes-1 [nil nil])
@@ -359,7 +359,8 @@
                                                    ~expr1
                                                    ~expr2))]
                :when (and (not (every? nil? [suf1 suf2]))
-                          (not (ns-resolve 'clojure.core nme)))]
+                          (not (ns-resolve 'clojure.core nme))
+                          (not (ns-resolve *ns* nme)))]
            (if seq-macro?
              `(defmacro ~nme [& ~'args]
                 (->> `(->> (~'~seq-fn ~@~'args)

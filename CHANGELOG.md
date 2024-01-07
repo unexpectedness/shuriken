@@ -1,6 +1,13 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
+## [Unreleased] - 2024-01-07
+### Fixed:
+- Fix `monkey-patch`, `reflection` and `byte-buddy`.
+- Fix `sequential` where `takes` (`(set (take ...))`) would rewrite `sequential/takes`.
+- Fix all the tests.
+- Restore `shuriken.monkey-patches.pprint-newlines-test`.
+
 ## [0.14.50] - 2023-30-12
 ### Fixed:
 - Fix some reflection warning for ns: `exception`, `namespace`, `spec`.

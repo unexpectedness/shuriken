@@ -7,7 +7,7 @@
   (def ^:dynamic *print-pprint-string-newlines* false))
 
 (require-from-dependent-namespaces
-  '[clojure.pprint :refer [*print-pprint-string-newlines*]])
+  '[clojure.pprint :refer [*print-pprint-string-newlines*] :reload true])
 
 (require '[clojure.pprint :refer [*print-pprint-string-newlines*]])
 

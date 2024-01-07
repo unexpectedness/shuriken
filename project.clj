@@ -36,11 +36,14 @@
                  [net.cgrand/seqexp "0.6.2"]
 
                  ;; TODO: update this in dance then remove it.
-                 [org.flatland/ordered "1.5.7"]]
+                 [org.flatland/ordered "1.5.7"]
+                 
+                 [reader-macros "1.0.3"]]
   ;; To fix a goddamn bug on reload
   :aot [loom.graph ubergraph.core]
   ;; For syntax-quote monkey-patch
   :java-source-paths ["src/java"]
+  :jvm-opts ["-Djdk.attach.allowAttachSelf=true"]
   :plugins [[lein-codox "0.10.3"]
             [lein-cljsbuild "1.1.7"]
             [lein-doo   "0.1.11"]
@@ -64,7 +67,7 @@
           :dependencies [[codox-theme-rdash "0.1.2"]
                          ;; To find cljs/cljc test namespaces to run with doo
                          [org.clojure/tools.namespace "0.3.1"]]
-           :global-vars {*warn-on-reflection* true}}]
+           :global-vars {*warn-on-reflection* false #_true}}]
    :test [:dev
           {:cljsbuild
            {:builds
