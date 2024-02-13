@@ -5,6 +5,7 @@
                       debug
                       destructure
                       exception
+                      iterator
                       lazy
                       macro
                       meta
@@ -116,6 +117,10 @@
    no-print
    tabulate
    truncate
-   words])
+   words]
+  
+  [shuriken.iterator
+   compose-iterators
+   butlast-iterator])
 
 (import-namespace-vars shuriken.sequential)
