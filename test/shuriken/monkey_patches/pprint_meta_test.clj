@@ -58,3 +58,5 @@
     (testing "vars (IMeta but not IObj)"
       (is (= "^{:ns nil, :name nil} #<Var: --unnamed-->\n"
              (with-local-vars [x 1] (with-out-str (pprint x))))))))
+
+(clojure.test/run-tests)

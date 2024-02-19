@@ -1,0 +1,41 @@
+{:paths ["src" "resources" "target/classes"],
+ :deps
+ {nrepl/nrepl {:mvn/version "1.1.0"},
+  org.clojure/clojure {:mvn/version "1.11.1"},
+  potemkin/potemkin {:mvn/version "0.4.3"},
+  com.palletops/ns-reload {:mvn/version "0.1.0"},
+  net.cgrand/macrovich {:mvn/version "0.2.1"},
+  net.clojars.unexpectedness/dance
+  {:mvn/version "0.1.4",
+   :exclusions [net.clojars.unexpectedness/shuriken]},
+  net.clojars.unexpectedness/lexikon
+  {:mvn/version "0.2.2",
+   :exclusions [net.clojars.unexpectedness/shuriken]},
+  net.clojars.unexpectedness/weaving
+  {:mvn/version "0.2.5",
+   :exclusions [net.clojars.unexpectedness/shuriken]},
+  robert/hooke {:mvn/version "1.3.0"},
+  org.javassist/javassist {:mvn/version "3.26.0-GA"},
+  net.bytebuddy/byte-buddy {:mvn/version "1.10.14"},
+  net.bytebuddy/byte-buddy-agent {:mvn/version "1.10.14"},
+  camel-snake-kebab/camel-snake-kebab {:mvn/version "0.4.0"},
+  org.clojure/data.priority-map {:mvn/version "0.0.7"},
+  com.dean/interval-tree {:mvn/version "0.1.2"},
+  io.helins/interval {:mvn/version "1.0.0-beta0"},
+  ubergraph/ubergraph {:mvn/version "0.5.0"},
+  net.cgrand/seqexp {:mvn/version "0.6.2"},
+  org.flatland/ordered {:mvn/version "1.5.7"},
+  reader-macros/reader-macros {:mvn/version "1.0.3"},
+  org.clojure/core.rrb-vector {:mvn/version "0.1.2"}},
+ :aliases
+ {:lein2deps
+  {:deps
+   {io.github.borkdude/lein2deps
+    {:git/sha "1bcf2fbbcbef611381e5e9ccdc77bec1e62ea5e5"}},
+   :ns-default lein2deps.build,
+   :lein2deps/compile-java
+   {:src-dirs ["src/java"], :class-dir "target/classes"}},
+  :dev
+  {:extra-deps {org.clojure/clojurescript {:mvn/version "1.11.132"}}}},
+ :deps/prep-lib
+ {:ensure "target/classes", :alias :lein2deps, :fn compile-java}}

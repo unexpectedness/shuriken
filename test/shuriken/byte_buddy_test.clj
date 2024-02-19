@@ -22,5 +22,3 @@
     (is (= #{Object XMother$Crying XMother$Infant} (ancestors XMother$Child))))
 
   (is (= 1 (MonkeyPatchedTestByteBuddyCopy/a 0))))
-
-(run-tests)

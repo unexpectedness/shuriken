@@ -88,5 +88,3 @@
   (run-java-patch-test)
   #_(testing "is idempotent"
     (run-java-patch-test)))
-
-(run-tests)

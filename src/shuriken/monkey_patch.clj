@@ -324,15 +324,15 @@
 (defn define-again
   "Refreshes a var by evaluating its source. Preserves metadata."
   [namespaced-sym]
-  (let [ns-str (-> namespaced-sym .getNamespace)
-        _ (assert ns-str "Symbol must be namespaced")
-        ns-sym (symbol ns-str)
+  (let [ns-str     (-> namespaced-sym .getNamespace)
+        _          (assert ns-str "Symbol must be namespaced")
+        ns-sym     (symbol ns-str)
         source-str (source-fn namespaced-sym)
-        _ (assert source-str (format "No source found for %s" namespaced-sym))
-        source (read-string source-str)
-        _ (assert source
-                  (str "No source found for symbol '" namespaced-sym "'"))
-        v (resolve namespaced-sym)]
+        _          (assert source-str (format "No source found for %s" namespaced-sym))
+        source     (read-string {:read-cond :preserve} source-str)
+        _          (assert source
+                           (str "No source found for symbol '" namespaced-sym "'"))
+        v          (resolve namespaced-sym)]
     (with-ns ns-sym
        (let [orig (meta v)]
          (eval source)

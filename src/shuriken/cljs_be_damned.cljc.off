@@ -1,0 +1,531 @@
+(ns shuriken.cljs-be-damned
+  (:require [clojure.string        :as    str]
+            [clojure.set           :as    set]
+    #?(:clj [shuriken.monkey-patch :refer [monkey-patch]])
+            [cljs.analyzer         :as    ana]
+            [shuriken.namespace    :refer [with-ns ns-resource]]
+            [shuriken.sequential   :refer [separate]]
+            [shuriken.associative  :refer [map-vals]]
+            [weaving.core          :refer :all]))
+
+
+(println "CLJS BE DAMNED")
+
+#?(:clj (defn- class-for-name [s]
+          (try (Class/forName (str s))
+               (catch Throwable _ nil))))
+
+#?(:clj (defn- java-class? [x]
+          (if (or (ident? x) (string? x))
+            (class-for-name (str x))
+            (class-for-name (str (first x) "." (second x))))))
+
+#?(:clj (defn- cljs-def [x]
+          (let [s      (str x)
+                idx    (.lastIndexOf s "/")
+                idx    (if (>= idx 0)
+                         idx
+                         (.lastIndexOf s "."))
+                prefix (subs s 0 idx)
+                prefix (symbol (str/replace prefix #"^clojure" "cljs"))
+                suffix (symbol (subs s (inc idx)))]
+            (binding [*out* *err*]
+              (println "x" x (class x))
+              (println "nss" prefix suffix))
+            (-> @cljs.env/*compiler*
+                :cljs.analyzer/namespaces
+                (get prefix) :defs
+                (get suffix)))))
+
+#?(:clj (defn adapt-opts [lib opts]
+          (if-not (ns-resource lib)
+            opts
+            (do (cond (:reload-all opts) (require lib :reload-all)
+                      (:reload     opts) (require lib :reload)
+                      :else              (require lib))
+                (let [pubs          (ns-publics lib)
+                      macro?        (->| pubs meta :macro)
+                      refs          (if (-> opts :refer (= :all))
+                                      (keys pubs)
+                                      (:refer opts))
+                      [refs macros] (separate macro? refs)
+                      ref-macs      (vec (set/union (-> macros set) (-> opts :refer-macros set)))
+                      js-imps       (vec (remove (and| java-class? (not| cljs-def)) (:import opts)))]
+                  (if (-> opts :refer (= :all))
+                    (assoc opts
+                           :refer          refs
+                           :refer-macros   ref-macs
+                           :include-macros (if (contains? opts :include-macros)
+                                             (:include-macros opts)
+                                             true)
+                           :imports        js-imps
+                           )
+                    opts))))))
+
+;; #?(:clj (monkey-patch :patch-parse-require-spec
+;;                       ana/parse-require-spec [original env macros? deps aliases spec]
+;;                       (let [[lib & opts] (if (or (symbol? spec) (string? spec))
+;;                                            [spec]
+;;                                            spec)
+;;                             opts (adapt-opts lib (apply hash-map opts))
+;;                             spec (vec (cons lib (apply concat opts)))]
+;;                         (original env macros? deps aliases spec))))
+
+(defn ns-confirmed? [env ns-sym]
+  (boolean
+   (or (= 'cljs.core ns-sym)
+       (get ana/implicit-nses ns-sym)
+       (get (-> env :ns :requires) ns-sym)
+       ;; something else may have loaded the namespace, i.e. load-file
+       #_(gets @cljs.env/*compiler* ::ana/namespaces ns-sym)
+       ;; macros may refer to namespaces never explicitly required
+       ;; confirm that the library at least exists
+       #?(:clj (cljs.util/ns->source ns-sym))
+       (ana/js-module-exists? ns-sym)
+       #_(ns-resource ns-sym))))
+
+(defn adapt-self-ns-require-macros [env ns-name ret]
+  (if-not (ns-confirmed? env ns-name)
+    ret
+    (let [macs        (when (ns-resource ns-name)
+                        (require ns-name :reload)
+                        (->> ns-name
+                             ns-publics
+                             (filter (comp :macro meta val))
+                             (map (fn [[k ^clojure.lang.Var v]]
+                                    [k (-> v .ns .name)]))
+                             (into {})))
+          infos       (get-in @cljs.env/*compiler* [:cljs.analyzer/namespaces ns-name])
+          java-imps   (->> infos :imports vals (filter java-class?) set)
+          clean-infos (-> infos
+                          (update :imports
+                                  #(->> %
+                                        (remove (->| val java-imps))
+                                        (into {})))
+                          (update :requires
+                                  #(->> %
+                                        (remove (->| val java-imps))
+                                        (into {}))))
+          clean-infos (if (and (seq macs) (ns-resource ns-name))
+                        (-> clean-infos
+                            (update :require-macros assoc ns-name ns-name)
+                            (update :use-macros merge macs))
+                        clean-infos)]
+      (swap! cljs.env/*compiler* assoc-in [:cljs.analyzer/namespaces ns-name] clean-infos)
+      (-> ret
+          (update :deps           #(->> % (remove java-imps) vec))
+          (update :requires       #(->> %
+                                        (remove (->| val java-imps))
+                                        (into {})))
+          (assoc  :require-macros (:require-macros clean-infos))
+          (assoc  :use-macros     (:use-macros clean-infos))
+          (assoc  :imports        (:imports clean-infos))))))
+
+(defonce original-parse-ns (get-method ana/parse 'ns))
+
+(with-ns 'cljs.analyzer
+  (defmethod cljs.analyzer/parse 'ns [a env [_ name & args :as form] b opts]
+    (shuriken.cljs-be-damned/adapt-self-ns-require-macros
+     env name
+     (shuriken.cljs-be-damned/original-parse-ns a env form b opts))))
+
+#?(:clj (defn- dep-present? [full-name]
+          (let [ns  (namespace full-name)
+                nme (name      full-name)]
+            (assert ns "Namespace missing from dependency symbol")
+            (->> (System/getProperty "java.class.path")
+                 (re-find (re-pattern (str "/" (str/replace ns #"\." "/") "/" nme "/")))
+                 boolean))))
+
+;; #?(:clj (defn- class-for-name [s]
+;;           (try (Class/forName (str s))
+;;                (catch Throwable _ nil))))
+
+;; #?(:clj (defn- java-class? [x]
+;;           (if (or (ident? x) (string? x))
+;;             (class-for-name (str x))
+;;             (class-for-name (str (first x) "." (second x))))))
+
+;; #?(:clj (defn- cljs-def [x]
+;;           (let [s      (str x)
+;;                 idx    (.lastIndexOf s "/")
+;;                 idx    (if (>= idx 0)
+;;                          idx
+;;                          (.lastIndexOf s "."))
+;;                 prefix (subs s 0 idx)
+;;                 prefix (symbol (str/replace prefix #"^clojure" "cljs"))
+;;                 suffix (symbol (subs s (inc idx)))]
+;;             (binding [*out* *err*]
+;;               (println "x" x (class x))
+;;               (println "nss" prefix suffix))
+;;             (-> @cljs.env/*compiler*
+;;                 :cljs.analyzer/namespaces
+;;                 (get prefix) :defs
+;;                 (get suffix)))))
+
+;; #?(:clj (defn adapt-opts [lib opts]
+;;           (if-not (ns-resource lib)
+;;             opts
+;;             (do (cond (:reload-all opts) (require lib :reload-all)
+;;                       (:reload     opts) (require lib :reload)
+;;                       :else              (require lib))
+;;                 (let [pubs          (ns-publics lib)
+;;                       macro?        (->| pubs meta :macro)
+;;                       refs          (if (-> opts :refer (= :all))
+;;                                       (keys pubs)
+;;                                       (:refer opts))
+;;                       [refs macros] (separate macro? refs)
+;;                       ref-macs      (vec (set/union (-> macros set) (-> opts :refer-macros set)))
+;;                       js-imps       (vec (remove (and| java-class? (not| cljs-def)) (:import opts)))]
+;;                   (if (-> opts :refer (= :all))
+;;                     (assoc opts
+;;                            :refer          refs
+;;                            :refer-macros   ref-macs
+;;                            :include-macros (if (contains? opts :include-macros)
+;;                                              (:include-macros opts)
+;;                                              true)
+;;                            :imports        js-imps)
+;;                     opts))))))
+
+;; #?(:clj (when (dep-present? 'org.clojure/clojurescript)
+;;           (require '[cljs.analyzer :as ana])))
+
+;; ;; TODO adapt-opts then call original
+#?(:clj (when (dep-present? 'org.clojure/clojurescript)
+          (monkey-patch :patch-parse-require-spec
+                        ana/parse-require-spec [_original env macros? deps aliases spec]
+                        (if (or (symbol? spec) (string? spec))
+                          (ana/parse-require-spec env macros? deps aliases [spec])
+                          (do
+                            (ana/basic-validate-ns-spec env macros? spec)
+                            (let [[lib & opts] spec
+                                     ;; We need to load JS modules by the name that has been created by the
+                                     ;; Google Closure compiler, e.g. module$resources$libs$calculator.
+                                     ;; This means that we need to create an alias from the module name
+                                     ;; given with :provides to the new name.
+                                  [lib js-module-provides] (if-some [js-module-name (ana/gets @cljs.env/*compiler* :js-module-index (str lib) :name)]
+                                                             [(symbol js-module-name) lib]
+                                                             [lib nil])
+                                  oopts   (apply hash-map opts)
+                                  ;; _ (binding [*out* *err*]
+                                  ;;     (println "--------OPTS BEFORE" lib)
+                                  ;;     (clojure.pprint/pprint oopts))
+                                  oopts-a (adapt-opts lib oopts)
+                                  {alias :as referred :refer renamed :rename
+                                   :or {alias (if (string? lib)
+                                                (symbol (munge lib))
+                                                lib)}}
+                                  oopts-a
+                                  ;; _ (binding [*out* *err*]
+                                  ;;     (println "--------OPTS AFTER" lib)
+                                  ;;     (clojure.pprint/pprint oopts-a))
+                                  referred-without-renamed (seq (remove (set (keys renamed)) referred))
+                                  [rk uk renk] (if macros? [:require-macros :use-macros :rename-macros] [:require :use :rename])]
+                              (when-not (or (symbol? alias) (nil? alias))
+                                (throw
+                                 (ana/error env
+                                            (ana/parse-ns-error-msg spec
+                                                                    ":as must be followed by a symbol in :require / :require-macros"))))
+                              (when (some? alias)
+                                (let [alias-type (if macros? :macros :fns)
+                                      lib'       ((alias-type @aliases) alias)]
+                                  (when (and (some? lib') (not= lib lib'))
+                                    (throw (ana/error env (ana/parse-ns-error-msg spec ":as alias must be unique"))))
+                                  (swap! aliases
+                                         update-in [alias-type]
+                                         conj [alias lib] (when js-module-provides [js-module-provides lib]))))
+                              (when-not (or (and (sequential? referred)
+                                                 (every? symbol? referred))
+                                            (nil? referred))
+                                (throw
+                                 (ana/error env
+                                            (ana/parse-ns-error-msg spec
+                                                                    ":refer must be followed by a sequence of symbols in :require / :require-macros"))))
+                              (when-not macros?
+                                (swap! deps conj lib))
+                              (merge
+                               (when (some? alias)
+                                 {rk (merge {alias lib} {lib lib}
+                                            (when js-module-provides {js-module-provides lib}))})
+                               (when (some? referred-without-renamed)
+                                 {uk (apply hash-map (interleave referred-without-renamed (repeat lib)))})
+                               (when (some? renamed)
+                                 {renk (reduce (fn [m [original renamed]]
+                                                 (when-not (some #{original} referred)
+                                                   (throw (ana/error env
+                                                                     (str "Renamed symbol " original " not referred"))))
+                                                 (assoc m renamed (symbol (str lib) (str original))))
+                                               {} renamed)}))))))))
+
+;; ;; TODO: remove#?
+;; #?(:clj (defn analyze-deps
+;;           "Given a lib, a namespace, deps, its dependencies, env, an analysis environment
+;;            and opts, compiler options - analyze all of the dependencies. Required to
+;;            correctly analyze usage of other namespaces."
+;;           ([lib deps env]
+;;            (analyze-deps lib deps env
+;;                          (when cljs.env/*compiler*
+;;                            (:options @cljs.env/*compiler*))))
+;;           ([lib deps env opts]
+;;            (let [compiler @cljs.env/*compiler*]
+;;              (binding [ana/*cljs-dep-set* (vary-meta (conj ana/*cljs-dep-set* lib) update-in [:dep-path] conj lib)]
+;;                (assert (every? #(not (contains? ana/*cljs-dep-set* %)) deps)
+;;                        (str "Circular dependency detected, "
+;;                             (apply str
+;;                                    (interpose " -> "
+;;                                               (conj (-> ana/*cljs-dep-set* meta :dep-path)
+;;                                                     (some ana/*cljs-dep-set* deps))))))
+;;                (doseq [dep deps]
+;;                  (when-not (or (some? (get-in compiler [:ana/namespaces dep :defs]))
+;;                                (ana/node-module-dep? dep)
+;;                                (ana/js-module-exists? (name dep))
+;;                                #?(:clj (cljs.js-deps/find-classpath-lib dep)))
+;;                    (let [idx (:js-dependency-index compiler)
+;;                          dep (-> dep ana/lib&sublib first)]
+;;                      (if (contains? idx (name dep))
+;;                        (let [dep-name (name dep)]
+;;                          (when (str/starts-with? dep-name "goog.")
+;;                            #?(:clj (let [js-lib (get idx dep-name)
+;;                                          ns (cljs.externs/analyze-goog-file (:file js-lib) (symbol dep-name))]
+;;                                      (swap! cljs.env/*compiler* update-in [:ana/namespaces dep] merge ns)))))
+;;                        #?(:clj  (if-some [src (ana/locate-src dep)]
+;;                                   (ana/analyze-file src opts)
+;;                                   (throw
+;;                                    (ana/error env
+;;                                               (ana/error-message :undeclared-ns {:ns-sym dep :js-provide (name dep)}))))
+;;                           :cljs (throw
+;;                                  (ana/error env
+;;                                             (ana/error-message :undeclared-ns {:ns-sym dep :js-provide (name dep)})))))))))))))
+
+;; #?(:clj (monkey-patch :patch-analyze-deps ana/analyze-deps [original lib deps & more]
+;;                       (clojure.pprint/pprint deps)
+;;                       (apply shuriken.cljs-be-damned/analyze-deps lib deps more)))
+
+;; #?(:clj (defn ns-side-effects
+;;           [env {:keys [op] :as ast} opts]
+;;           (if (#{:ns :ns*} op)
+;;             (let [{:keys [name deps uses require-macros use-macros reload reloads]} ast]
+;;               (when (and ana/*analyze-deps* (seq deps))
+;;                 (analyze-deps
+;;                  (if (@#'ana/repl-self-require? env deps) 'cljs.user name)
+;;                  deps env (dissoc opts :macros-ns)))
+;;               (if ana/*load-macros*
+;;                 (do
+;;                   (ana/load-core)
+;;                   (doseq [nsym (vals use-macros)]
+;;                     (let [k (or (:use-macros reload)
+;;                                 (get-in reloads [:use-macros nsym])
+;;                                 (and (= nsym name) ana/*reload-macros* :reload))]
+;;                       (if k
+;;                         (locking ana/load-mutex
+;;                           (clojure.core/require nsym k))
+;;                         (locking ana/load-mutex
+;;                           (clojure.core/require nsym)))
+;;                       (ana/intern-macros nsym k)))
+;;                   (doseq [nsym (vals require-macros)]
+;;                     (let [k (or (:require-macros reload)
+;;                                 (get-in reloads [:require-macros nsym])
+;;                                 (and (= nsym name) ana/*reload-macros* :reload))]
+;;                       (if k
+;;                         (locking ana/load-mutex
+;;                           (clojure.core/require nsym k))
+;;                         (locking ana/load-mutex
+;;                           (clojure.core/require nsym)))
+;;                       (ana/intern-macros nsym k)))
+;;                   (-> ast
+;;                       (ana/check-use-macros-inferring-missing env)
+;;                       (ana/check-rename-macros-inferring-missing env)))
+;;                 (do
+;;                   (ana/check-uses
+;;                    (when (and ana/*analyze-deps* (seq uses))
+;;                      (ana/missing-uses uses env))
+;;                    env)
+;;                   ast)))
+;;             ast)))
+
+;; #?(:clj (defonce original-ns-side-effects
+;;           ana/ns-side-effects))
+
+;; #?(:clj (defn adapt-ns-ast [ast]
+;;           (let [remove-classes #(->> %
+;;                                      (remove (->| val (and| class-for-name (not| cljs-def))))
+;;                                      (into {}))
+;;                 lib    (:name ast)
+;;                 ns-res (and (not= lib 'cljs.core)
+;;                             (not= lib 'cljs.spec.gen.alpha)
+;;                             (ns-resource lib))
+;;                 _      (when ns-res
+;;                          (require lib #_:reload))]
+;;             (when (= lib 'shuriken.exception)
+;;               (binding [*out* *err*]
+;;                 (clojure.pprint/pprint ast)))
+;;             (if ns-res
+;;               (assoc ast
+;;                      :deps     (vec (set/difference
+;;                                      (set       (:deps    ast))
+;;                                      (set (vals (:imports ast)))))
+;;                      :imports  (remove-classes (:imports  ast))
+;;                                                                 ;; :requires (remove-classes (:requires ast))
+;;                      :require-macros (-> (:require-macros ast)
+;;                                          (assoc lib lib))
+;;                      :use-macros     (-> (:use-macros ast)
+;;                                          (merge (->> lib
+;;                                                      ns-publics
+;;                                                      (filter (->| val meta :macro))
+;;                                                      (map-vals #(-> % .ns .name))
+;;                                                      (into {})))))
+;;               ast))))
+
+;; #?(:clj (monkey-patch :patch-ns-side-effects
+;;                       ana/ns-side-effects [_original env ast opts]
+;;                       (let [ast (shuriken.cljs-be-damned/adapt-ns-ast ast)]
+;;                         (shuriken.cljs-be-damned/ns-side-effects env ast opts))))
+
+;; #?(:clj (alter-var-root #'ana/default-passes
+;;                         (fn [x]
+;;                           (-> x
+;;                               (->> (remove #{original-ns-side-effects
+;;                                              ana/ns-side-effects}))
+;;                               vec
+;;                               (conj ana/ns-side-effects)))))
+
+;; #?(:clj (monkey-patch :patch-confirm-var-exist-warning
+;;                       ana/confirm-var-exist-warning [original env prefix suffix]
+;;                       (->| (original env prefix suffix)
+;;                            (fn [ret]
+;;                              (binding [*out* *err*]
+;;                                #_(println "===>" prefix suffix)
+;;                                (when (and (= prefix 'shuriken.associative-test)
+;;                                           (= suffix 'map-vals))
+;;                                  #_(clojure.pprint/pprint (Exception.))))
+;;                              ret))))
+
+;; (defn resolve-var
+;;   "Resolve a var. Accepts a side-effecting confirm fn for producing
+;;    warnings about unresolved vars."
+;;   ([env sym]
+;;    (resolve-var env sym nil))
+;;   ([env sym confirm]
+;;    (resolve-var env sym confirm true))
+;;   ([env sym confirm default?]
+;;    (let [locals (:locals env)]
+;;      (if #?(:clj  (= "js" (namespace sym))
+;;             :cljs (identical? "js" (namespace sym)))
+;;        (let [symn (-> sym name symbol)
+;;              shadowed-by-local (ana/handle-symbol-local symn (get locals symn))]
+;;          (cond
+;;            (some? shadowed-by-local)
+;;            (do (ana/warning :js-shadowed-by-local env {:name sym})
+;;                (assoc shadowed-by-local :op :local))
+
+;;            :else
+;;            (let [pre (->> (str/split (name sym) #"\.") (map symbol) vec)]
+;;              (when (and (not (ana/has-extern? pre))
+;;                         ;; ignore exists? usage
+;;                         (not (-> sym meta :ana/no-resolve)))
+;;                (swap! cljs.env/*compiler* update-in
+;;                       (into [:ana/namespaces (-> env :ns :name) :externs] pre) merge {}))
+;;              (merge
+;;               {:name sym
+;;                :op :js-var
+;;                :ns   'js
+;;                :tag  (with-meta (or (ana/js-tag pre) (:tag (meta sym)) 'js) {:prefix pre})}
+;;               (when-let [ret-tag (ana/js-tag pre :ret-tag)]
+;;                 {:js-fn-var true
+;;                  :ret-tag ret-tag})))))
+;;        (let [s  (str sym)
+;;              lb (ana/handle-symbol-local sym (get locals sym))
+;;              current-ns (-> env :ns :name)]
+;;          (cond
+;;            (some? lb) (assoc lb :op :local)
+
+;;            (some? (namespace sym))
+;;            (let [ns      (namespace sym)
+;;                  ns      (if #?(:clj  (= "clojure.core" ns)
+;;                                 :cljs (identical? "clojure.core" ns))
+;;                            "cljs.core"
+;;                            ns)
+;;                  full-ns (ana/resolve-ns-alias env ns
+;;                                            (or (and (ana/js-module-exists? ns)
+;;                                                     (ana/gets @cljs.env/*compiler* :js-module-index ns :name))
+;;                                                (symbol ns)))]
+;;              (when (some? confirm)
+;;                (when (not= current-ns full-ns)
+;;                  (ana/confirm-ns env full-ns))
+;;                (confirm env full-ns (symbol (name sym))))
+;;              (ana/resolve* env sym full-ns current-ns))
+
+;;            (ana/dotted-symbol? sym)
+;;            (let [idx    (.indexOf s ".")
+;;                  prefix (symbol (subs s 0 idx))
+;;                  suffix (subs s (inc idx))]
+;;              ;; check if prefix is some existing def
+;;              (if-let [resolved (resolve-var env prefix nil false)]
+;;                (update resolved :name #(symbol (str % "." suffix)))
+;;                ;; glib imports (i.e. (:import [goog.module ModuleLoader])
+;;                ;; are always just dotted symbols after the recursion
+;;                (let [s   (str
+;;                           (cond->> s
+;;                             (ana/goog-module-dep? sym)
+;;                             (ana/resolve-import env)))
+;;                      idx (.lastIndexOf (str s) ".")
+;;                      pre (subs s 0 idx)
+;;                      suf (subs s (inc idx))]
+;;                  {:op   :var
+;;                   :name (symbol pre suf)
+;;                   :ns   (symbol pre)})))
+
+;;            (some? (ana/gets @cljs.env/*compiler* :ana/namespaces current-ns :uses sym))
+;;            (let [full-ns (ana/gets @cljs.env/*compiler* :ana/namespaces current-ns :uses sym)]
+;;              (ana/resolve* env sym full-ns current-ns))
+
+;;            (some? (ana/gets @cljs.env/*compiler* :ana/namespaces current-ns :renames sym))
+;;            (let [qualified-symbol (ana/gets @cljs.env/*compiler* :ana/namespaces current-ns :renames sym)
+;;                  full-ns (symbol (namespace qualified-symbol))
+;;                  sym     (symbol (name qualified-symbol))]
+;;              (ana/resolve* env sym full-ns current-ns))
+
+;;            (some? (ana/gets @cljs.env/*compiler* :ana/namespaces current-ns :imports sym))
+;;            (recur env (ana/gets @cljs.env/*compiler* :ana/namespaces current-ns :imports sym) confirm default?)
+
+;;            (some? (ana/gets @cljs.env/*compiler* :ana/namespaces current-ns :defs sym))
+;;            (do
+;;              (when (some? confirm)
+;;                (confirm env current-ns sym))
+;;              (merge (ana/gets @cljs.env/*compiler* :ana/namespaces current-ns :defs sym)
+;;                     {:name (symbol (str current-ns) (str sym))
+;;                      :op :var
+;;                      :ns current-ns}))
+
+;;            (ana/core-name? env sym)
+;;            (let [sym (ana/resolve-alias 'cljs.core sym)]
+;;              (when (some? confirm)
+;;                (confirm env 'cljs.core sym))
+;;              (merge (ana/gets @cljs.env/*compiler* :ana/namespaces 'cljs.core :defs sym)
+;;                     {:name (symbol "cljs.core" (str sym))
+;;                      :op :var
+;;                      :ns 'cljs.core}))
+
+;;            (ana/invokeable-ns? s env)
+;;            (ana/resolve-invokeable-ns s current-ns env)
+
+;;            :else
+;;            (when default?
+;;              (when (some? confirm)
+;;                #_(binding [*out* *err*]
+;;                  (println "SYM======>" sym))
+;;                (confirm env current-ns sym))
+;;              (merge (ana/gets @cljs.env/*compiler* :ana/namespaces current-ns :defs sym)
+;;                     {:name (symbol (str current-ns) (str sym))
+;;                      :op :var
+;;                      :ns current-ns}))))))))
+
+;; #?(:clj (monkey-patch :patch-resolve-var ana/resolve-var [_original & args]
+;;                       (apply shuriken.cljs-be-damned/resolve-var args)))
+
+;; #?(:clj (monkey-patch :patch-analyze-seq* ana/analyze-seq* [original op env form name opts]
+;;                       #_(binding [*out* *err*]
+;;                         (println "==>" form))
+;;                       (original op env form name opts)))
+
+;; #?(:cljs (println "-------------------->" ExceptionInfo))

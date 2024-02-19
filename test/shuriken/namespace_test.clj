@@ -1,9 +1,9 @@
 (ns shuriken.namespace-test
-  (:require [clojure.test :refer :all]
-            [shuriken.core :refer :all]
-            [shuriken.virtual-test-namespace
-             :refer [a-var .dot-var AProtocol]
-             :as virtual])
+  (:require [clojure.test                    :refer :all]
+            [clojure.java.io                 :as    io]
+            [shuriken.core                   :refer :all]
+            [shuriken.virtual-test-namespace :refer [a-var .dot-var AProtocol]
+                                             :as    virtual])
   (:import [shuriken.virtual_test_namespace AType]))
 
 (def expectations
@@ -61,3 +61,11 @@
     (is (with-ns 'shuriken.virtual-test-namespace
           (= *ns* (the-ns 'shuriken.virtual-test-namespace))))
     (is (= *ns* initial-ns))))
+
+(defn- filename [url]
+  (.getName (io/file url)))
+
+(deftest test-ns-resource
+  (is (= "associative_test.cljc" (filename (ns-resource 'shuriken.associative-test))))
+  (is (= "byte_buddy.clj"        (filename (ns-resource 'shuriken.byte-buddy))))
+  (is (= nil                               (ns-resource 'goog.string))))

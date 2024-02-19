@@ -1,12 +1,10 @@
 (ns shuriken.reader-macros.diaeresis-unquote
-  (:use clojure.pprint)
   (:require [reader-macros.core :refer [set-macro-character
                                         macro-read-unquote]]))
 
 (def diaeresis-unquotations
   (atom {}))
 
-(def ^:dynamic *store-unquote*)
 (def ^:dynamic *store-unquote*)
 
 (defn mem-unquote

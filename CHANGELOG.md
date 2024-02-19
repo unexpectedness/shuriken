@@ -1,9 +1,20 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
-## Unreleased
+## [0.14.52] - 2024-02-19
 ### Added:
 - `shuriken.iterator`.
+- `shuriken.namespace`: `ns-resource`.
+### Changed
+- Clojurescript support for:
+  - `exception`
+  - `string`
+  - `namespace`
+  - `sequential`
+  - `associative`
+  - `spec`
+  - `test`
+  - `debug`
 
 ## [0.14.51] - 2024-01-07
 ### Fixed:

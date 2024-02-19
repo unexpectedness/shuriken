@@ -90,7 +90,7 @@
   (let [[_class-name method-name parameter-types]
         (conform! ::method-signature method-signature)
         ct-class (find-class method-signature)
-        ct-method (->> (.getMethods ct-class)
+        ct-method (->> (.getDeclaredMethods ct-class)
                        (filter #(and (= method-name (.getName %))
                                      (if (nil? parameter-types)
                                        true

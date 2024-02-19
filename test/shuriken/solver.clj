@@ -248,29 +248,29 @@
         tokens-by-line (->> by-val
                             #_(map (juxt key (comp set seq val)))
                             #_(apply clojure.set/union))
-        ;; score (->> idxs
-        ;;            (map (comp count val))
-        ;;            (filter #(> % 1))
-        ;;            (reduce +))
-        score (->> (forcat [[l intervals] (imap/by-value idxs)]
-                     (forcat [[s e] intervals]
-                       (forcat [[[ss ee] ls] (subseq idxs >= s < e)]
-                          (forcat [ll (disj ls l)
-                                   :let [distances
-                                         (->> (re-idxs ll)
-                                              (filter (fn [[s e]]
-                                                        (or (and (>= ss s) (< ss e))
-                                                            (and (<= ee e) (> ee s)))))
-                                              (map (fn [[ss ee :as idx]]
-                                                     [idx (Math/abs (- s ss))
-                                                      #_(min (Math/abs (- s ss))
-                                                               (Math/abs (- e ee)))])))]]
-                            (for [[[ss ee] score] distances]
-                              [(set [[s e] [ss ee]]) score])
-                            ))))
-                   distinct
-                   (map second)
-                   (apply +))
+        score (->> idxs
+                   (map (comp count val))
+                   (filter #(> % 1))
+                   (reduce +))
+        ;; score (->> (forcat [[l intervals] (imap/by-value idxs)]
+        ;;              (forcat [[s e] intervals]
+        ;;                (forcat [[[ss ee] ls] (subseq idxs >= s < e)]
+        ;;                   (forcat [ll (disj ls l)
+        ;;                            :let [distances
+        ;;                                  (->> (re-idxs ll)
+        ;;                                       (filter (fn [[s e]]
+        ;;                                                 (or (and (>= ss s) (< ss e))
+        ;;                                                     (and (<= ee e) (> ee s)))))
+        ;;                                       (map (fn [[ss ee :as idx]]
+        ;;                                              [idx (Math/abs (- s ss))
+        ;;                                               #_(min (Math/abs (- s ss))
+        ;;                                                        (Math/abs (- e ee)))])))]]
+        ;;                     (for [[[ss ee] score] distances]
+        ;;                       [(set [[s e] [ss ee]]) score])
+        ;;                     ))))
+        ;;            distinct
+        ;;            (map second)
+        ;;            (apply +))
         free-idxs (apply set/difference (set (range (max-count lines)))
                          (map (comp set (partial apply range))
        
@@ -307,11 +307,11 @@
   (let [lines (normalize-lines lines)
         [free-idxs token-score] (token-alignment-score lines)
         ]
-    (+ token-score
-       (char-alignment-score lines #_free-idxs)
+    (+ #_token-score
+       (char-alignment-score lines free-idxs)
        (length-score lines))))
 
-(def ^:dynamic *max-iter* 10000)
+(def ^:dynamic *max-iter* 1000)
 
 (def action-indexes
   {:insert-blank #(map ffirst (re-indexes ins-pat %))
@@ -330,8 +330,9 @@
                    :delete-blank (fn [[_iter _score lines] i j]
                                    (let [nlines (update-in lines [i] str-delete j)]
                                      [(swap! iter inc) (alignment-score nlines) nlines]))
-                   :move-token   (fn [[_iter _score lines] i j]
-                                   )}
+                  ;;  :move-token   (fn [[_iter _score lines] i j]
+                  ;;                  )
+                   }
      :transitions (fn transit [actions [_iter _score lines :as state]]
                     (let [lines (vec lines)
                           ins   (:insert-blank actions)
@@ -343,30 +344,50 @@
                             [[a i j] (f state i j)])))))
      :result      result}))
 
-;; (let [a  "ab  b    a"
-;;       b  "a cfgh  a"
-;;       c  "d   e    f"
-;;       pb (align-lines [a b c])]
-;;   (println "INPUT:" a)
-;;   (println "      " b)
-;;   (println "      " c)
-;;   (time (solve pb (a* second)))
-;;   (println "RESULT:" (-> pb :result deref (nth 2) first))
-;;   (println "       " (-> pb :result deref (nth 2) second))
-;;   (println "       " (-> pb :result deref (nth 2) (nth 2)))
-;;   (println "FOUND AT ITERATION" (-> pb :result deref first)))
-
-#_(let [lines ["(:require [clojure.set as set]"
-             "          [clojure.data.priority-map refer [priority-map-by]]"
-             "          [helins.interval.map as imap]"
-             "          [com.dean.interval-tree.core refer [interval-map]])"]
-      pb (align-lines lines)]
+#_(let [a  "ab  b    a"
+      b  "a cfgh  a"
+      c  "d   e    f"
+      pb (align-lines [a b c])]
+  (println "INPUT:" a)
+  (println "      " b)
+  (println "      " c)
   (time (solve pb (a* second)))
-  (pprint (-> pb :result deref)))
+  (println "RESULT:" (-> pb :result deref (nth 2) first))
+  (println "       " (-> pb :result deref (nth 2) second))
+  (println "       " (-> pb :result deref (nth 2) (nth 2)))
+  (println "FOUND AT ITERATION" (-> pb :result deref first)))
 
-(let [lines ["(aaa-crock 123)"
-             "( bb-crock abc)"]
+(defn lcs
+  [str1 str2]
+  (loop [s1 (seq str1), s2 (seq str2), len 0, maxlen 0]
+    (cond
+      (>= maxlen (count s1)) maxlen
+      (>= maxlen (+ (count s2) len)) (recur (rest s1) (seq str2) 0 maxlen)
+      :else (let [a (nth s1 len ""), [b & s2] s2, len (inc len)]
+              (if (= a b)
+                (recur s1 s2 len (if (> len maxlen) len maxlen))
+                (recur s1 s2 0 maxlen))))))
+
+
+
+(let [lines ["(:require [clojure.set as set]"
+             "          [clojure.data.priority-map refer [priority-map-by]]"
+             "          [com.dean.interval-tree.core refer [interval-map]])"]
+      lines ["(+ age-of-captain something-else (fuck))"
+              "(- weight-of-captain (fuck :hahaha))"]
+      pb (align-lines lines)]
+  (println (apply lcs lines))
+  ;; (pprint pb)
+  ;; (println "INPUT")
+  ;; (println (clojure.string/join "\n" lines))
+  ;; (time (solve pb (a* second)))
+  ;; (pprint (-> pb :result deref))
+  )
+
+#_(let [lines ["(aaa-crock 123)"
+             "(bb-crock        abc)"]
       pb    (align-lines lines)]
+  (println (-> (:result pb) deref last (->> (clojure.string/join "\n"))))
   (println "SCORE:" (alignment-score lines))
   ;; (time (solve pb (a* second)))
   ;; (println "RESULT:" (-> pb :result deref (nth 2) first))
