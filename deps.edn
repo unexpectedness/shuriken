@@ -6,7 +6,7 @@
   com.palletops/ns-reload {:mvn/version "0.1.0"},
   net.cgrand/macrovich {:mvn/version "0.2.1"},
   net.clojars.unexpectedness/dance
-  {:mvn/version "0.1.4",
+  {:mvn/version "0.1.4.2",
    :exclusions [net.clojars.unexpectedness/shuriken]},
   net.clojars.unexpectedness/lexikon
   {:mvn/version "0.2.2",

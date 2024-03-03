@@ -1,6 +1,6 @@
 ;; rlwrap lein trampoline cljsbuild repl-listen
 
-(defproject net.clojars.unexpectedness/shuriken "0.14.52"
+(defproject net.clojars.unexpectedness/shuriken "0.14.53"
   :description "unexpectedness' Clojure toolbox"
   :url "https://github.com/unexpectedness/shuriken"
   :license {:name "Eclipse Public License"
@@ -40,9 +40,9 @@
                  [com.palletops/ns-reload    "0.1.0"]
                  [net.cgrand/macrovich       "0.2.1"]
 
-                 [net.clojars.unexpectedness/dance   "0.1.4" :exclusions [net.clojars.unexpectedness/shuriken]]
-                 [net.clojars.unexpectedness/lexikon "0.2.2" :exclusions [net.clojars.unexpectedness/shuriken]]
-                 [net.clojars.unexpectedness/weaving "0.2.5" :exclusions [net.clojars.unexpectedness/shuriken]]
+                 [net.clojars.unexpectedness/dance   "0.1.4.2" :exclusions [net.clojars.unexpectedness/shuriken]]
+                 [net.clojars.unexpectedness/lexikon "0.2.2"   :exclusions [net.clojars.unexpectedness/shuriken]]
+                 [net.clojars.unexpectedness/weaving "0.2.5"   :exclusions [net.clojars.unexpectedness/shuriken]]
 
                  ;; For monkey patches
                  [robert/hooke "1.3.0"]

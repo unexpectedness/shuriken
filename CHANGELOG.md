@@ -1,6 +1,10 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
+## [0.14.53] - 2024-03-03
+### Fixed
+- `dance` v0.1.4.1.
+
 ## [0.14.52] - 2024-02-19
 ### Added:
 - `shuriken.iterator`.
